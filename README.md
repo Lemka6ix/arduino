@@ -351,30 +351,25 @@ void handleRoot() {
 #include <M5Unified.h>
 
 int CX;
-int CY;                 
-const int TARGET_R = 32; 
-const int BALL_R   = 8;  
+int CY;
+const int TARGET_R = 32;
+const int BALL_R   = 8;
 
 const float SCALE = 90.0;
-
 const float AX_SIGN = 1.0;
 const float AY_SIGN = 1.0;
-
 const float LEVEL_THRESHOLD = 0.08;
 
 void drawLevel(float ax, float ay) {
   M5.Display.fillScreen(TFT_BLACK);
 
   M5.Display.drawCircle(CX, CY, TARGET_R, TFT_GREEN);
-
   M5.Display.drawLine(CX - TARGET_R, CY, CX + TARGET_R, CY, TFT_DARKGREY);
   M5.Display.drawLine(CX, CY - TARGET_R, CX, CY + TARGET_R, TFT_DARKGREY);
 
-  // Смещение жёлтого кружка от наклона
   float dx = ax * SCALE * AX_SIGN;
   float dy = ay * SCALE * AY_SIGN;
 
-  // Ограничиваем, чтобы кружок не ушёл за экран
   float maxDx = CX - BALL_R - 2;
   float maxDy = CY - BALL_R - 2;
   dx = constrain(dx, -maxDx, maxDx);
@@ -385,7 +380,6 @@ void drawLevel(float ax, float ay) {
 
   M5.Display.fillCircle(bx, by, BALL_R, TFT_YELLOW);
 
-  // Индикация горизонтального положения
   float tilt = sqrt(ax * ax + ay * ay);
   bool level = (tilt < LEVEL_THRESHOLD);
 
@@ -397,8 +391,7 @@ void drawLevel(float ax, float ay) {
 void setup() {
   M5.begin();
 
-  // Горизонтальная ориентация
-  M5.Display.setRotation(1);
+  M5.Display.setRotation(0);
 
   CX = M5.Display.width() / 2;
   CY = M5.Display.height() / 2;
@@ -413,10 +406,10 @@ void loop() {
 
   if (M5.Imu.update()) {
     auto imu = M5.Imu.getImuData();
-
     drawLevel(imu.accel.x, imu.accel.y);
   }
 
   delay(20);
 }
+
 ```
