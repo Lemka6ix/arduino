@@ -299,6 +299,53 @@ void loop() {
 }
 ```
 
+ ```C
+void handleRoot() {
+  String page;
+  page.reserve(1700);
+
+  page += "<!DOCTYPE html><html><head>";
+  page += "<meta charset='utf-8'>";
+  page += "<meta name='viewport' content='width=device-width, initial-scale=1'>";
+  page += "<title>M5StickS3 Control</title>";
+  page += "<style>";
+  page += "body{font-family:Arial;margin:24px;}";
+  page += "button{font-size:18px;padding:10px 18px;margin:6px 0;";
+  page += "cursor:pointer;color:#fff;border:none;border-radius:6px;}";
+  page += ".btn1{background:#d32f2f;}";        /* красная */
+  page += ".btn2{background:#2e7d32;}";        /* зелёная */
+  page += ".btn1_gray{background:#9e9e9e;}";   /* серая (вкл) */
+  page += ".btn2_gray{background:#9e9e9e;}";   /* серая (вкл) */
+  page += ".state{font-size:18px;margin-top:16px;}";
+  page += "</style></head><body>";
+
+  page += "<h2>Управление прямоугольниками</h2>";
+
+  /* Прямоугольник 1 */
+  page += "<p class='state'>Прямоугольник 1: <b>";
+  page += rect1On ? "ВКЛ" : "ВЫКЛ";
+  page += "</b></p>";
+  page += "<form action='/toggle1' method='get'>";
+  page += "<button class='";
+  page += rect1On ? "btn1_gray" : "btn1";
+  page += "' type='submit'>Переключить прямоугольник 1</button>";
+  page += "</form>";
+
+  /* Прямоугольник 2 */
+  page += "<p class='state'>Прямоугольник 2: <b>";
+  page += rect2On ? "ВКЛ" : "ВЫКЛ";
+  page += "</b></p>";
+  page += "<form action='/toggle2' method='get'>";
+  page += "<button class='";
+  page += rect2On ? "btn2_gray" : "btn2";
+  page += "' type='submit'>Переключить прямоугольник 2</button>";
+  page += "</form>";
+
+  page += "</body></html>";
+
+  server.send(200, "text/html; charset=utf-8", page);
+}
+```
 ## 3
 ```C
 #include <M5Unified.h>
