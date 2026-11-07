@@ -171,46 +171,38 @@ void loop() {
 #include <WiFi.h>
 #include <WebServer.h>
 
-const char* ssid = "ASOIU";
-const char* password = "kaf.asoiu.48";
+const char* ssid = "Имя_вашей_сети";
+const char* password = "Пароль_вашей_сети";
 
 WebServer server(80);
 
-bool rect1On = false; // первый прямоугольник — красный
-bool rect2On = false; // второй прямоугольник — зелёный
+bool rect1On = false;
+bool rect2On = false;
 
-// Отрисовка экрана M5StickS3
 void drawScreen() {
-  M5.Display.setRotation(1);   // горизонтальная ориентация, 240x135
+  M5.Display.setRotation(0);
   M5.Display.clear(TFT_BLACK);
   M5.Display.setTextSize(1);
   M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
 
-  M5.Display.drawString("WEB CONTROL", 10, 8);
+  M5.Display.drawString("WEB CONTROL", 10, 5);
 
-  // Текст состояния над прямоугольниками
-  M5.Display.drawString(String("Rect1: ") + (rect1On ? "ON" : "OFF"), 10, 32);
-  M5.Display.drawString(String("Rect2: ") + (rect2On ? "ON" : "OFF"), 130, 32);
+  M5.Display.drawString(String("Rect1: ") + (rect1On ? "ON" : "OFF"), 10, 30);
+  if (rect1On) M5.Display.fillRect(20, 50, 95, 35, TFT_RED);
+  else         M5.Display.fillRect(20, 50, 95, 35, TFT_DARKGREY);
 
-  // Первый прямоугольник
-  if (rect1On) {
-    M5.Display.fillRect(20, 60, 80, 45, TFT_RED);
-  } else {
-    M5.Display.fillRect(20, 60, 80, 45, TFT_DARKGREY);
-  }
+  M5.Display.drawString(String("Rect2: ") + (rect2On ? "ON" : "OFF"), 10, 100);
+  if (rect2On) M5.Display.fillRect(20, 120, 95, 35, TFT_GREEN);
+  else         M5.Display.fillRect(20, 120, 95, 35, TFT_DARKGREY);
 
-  // Второй прямоугольник
-  if (rect2On) {
-    M5.Display.fillRect(140, 60, 80, 45, TFT_GREEN);
-  } else {
-    M5.Display.fillRect(140, 60, 80, 45, TFT_DARKGREY);
-  }
+  M5.Display.setTextColor(TFT_YELLOW, TFT_BLACK);
+  M5.Display.drawString("Open in browser:", 10, 190);
+  M5.Display.drawString(WiFi.localIP().toString(), 10, 210);
 }
 
-// Главная страница Web-сервера
 void handleRoot() {
   String page;
-  page.reserve(1200);
+  page.reserve(1500);
 
   page += "<!DOCTYPE html><html><head>";
   page += "<meta charset='utf-8'>";
@@ -218,7 +210,10 @@ void handleRoot() {
   page += "<title>M5StickS3 Control</title>";
   page += "<style>";
   page += "body{font-family:Arial;margin:24px;}";
-  page += "button{font-size:18px;padding:10px 18px;margin:6px 0;cursor:pointer;}";
+  page += "button{font-size:18px;padding:10px 18px;margin:6px 0;";
+  page += "cursor:pointer;color:#fff;border:none;border-radius:6px;}";
+  page += ".btn1{background:#d32f2f;}";
+  page += ".btn2{background:#2e7d32;}";
   page += ".state{font-size:18px;margin-top:16px;}";
   page += "</style></head><body>";
 
@@ -228,14 +223,14 @@ void handleRoot() {
   page += rect1On ? "ВКЛ" : "ВЫКЛ";
   page += "</b></p>";
   page += "<form action='/toggle1' method='get'>";
-  page += "<button type='submit'>Переключить прямоугольник 1</button>";
+  page += "<button class='btn1' type='submit'>Переключить прямоугольник 1</button>";
   page += "</form>";
 
   page += "<p class='state'>Прямоугольник 2: <b>";
   page += rect2On ? "ВКЛ" : "ВЫКЛ";
   page += "</b></p>";
   page += "<form action='/toggle2' method='get'>";
-  page += "<button type='submit'>Переключить прямоугольник 2</button>";
+  page += "<button class='btn2' type='submit'>Переключить прямоугольник 2</button>";
   page += "</form>";
 
   page += "</body></html>";
@@ -243,11 +238,9 @@ void handleRoot() {
   server.send(200, "text/html; charset=utf-8", page);
 }
 
-// Обработчики переключения
 void handleToggle1() {
   rect1On = !rect1On;
   drawScreen();
-
   server.sendHeader("Location", "/");
   server.send(303, "text/plain", "");
 }
@@ -255,7 +248,6 @@ void handleToggle1() {
 void handleToggle2() {
   rect2On = !rect2On;
   drawScreen();
-
   server.sendHeader("Location", "/");
   server.send(303, "text/plain", "");
 }
@@ -266,34 +258,23 @@ void handleNotFound() {
 
 void setup() {
   Serial.begin(115200);
-
   M5.begin();
-  M5.Display.setRotation(1);
-  M5.Display.clear(TFT_BLACK);
+
+  M5.Display.setRotation(0);
+  M5.Display.fillScreen(TFT_BLACK);
   M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
   M5.Display.drawString("Connecting to WiFi...", 10, 10);
 
-  Serial.print("Connecting to ");
-  Serial.println(ssid);
-
   WiFi.begin(ssid, password);
-
   while (WiFi.status() != WL_CONNECTED) {
     delay(500);
     Serial.print(".");
-    M5.Display.drawString(".", 10 + (millis() / 500) % 200, 30);
   }
-
   Serial.println();
-  Serial.println("WiFi connected");
-  Serial.print("IP address: ");
+  Serial.print("IP: ");
   Serial.println(WiFi.localIP());
 
   drawScreen();
-
-  
-  M5.Display.fillRect(0, 110, 240, 25, TFT_BLACK);
-  M5.Display.drawString(WiFi.localIP().toString(), 10, 112);
 
   server.on("/", handleRoot);
   server.on("/toggle1", handleToggle1);
@@ -301,12 +282,19 @@ void setup() {
   server.onNotFound(handleNotFound);
 
   server.begin();
-  Serial.println("Web server started");
 }
 
 void loop() {
   M5.update();
   server.handleClient();
+
+  static unsigned long lastIpPrint = 0;
+  if (millis() - lastIpPrint > 5000) {
+    lastIpPrint = millis();
+    Serial.print("IP: ");
+    Serial.println(WiFi.localIP());
+  }
+
   delay(2);
 }
 ```
