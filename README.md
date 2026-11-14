@@ -421,17 +421,11 @@ void loop() {
 
 bool alarmActive = false;
 float base_ax = 0.0, base_ay = 0.0, base_az = 0.0;
-float threshold = 0.4; 
-
-unsigned long previousToneMillis = 0;
-int toneState = 0;
-const int TONE_DURATION = 150; 
-const int PAUSE_DURATION = 50; 
+float threshold = 0.4;
 
 void setup() {
   M5.begin();
-  
-  M5.Lcd.setRotation(0); 
+  M5.Lcd.setRotation(0);
   M5.Lcd.fillScreen(TFT_BLACK);
   M5.Lcd.setTextColor(TFT_WHITE);
   M5.Lcd.setTextSize(2);
@@ -449,7 +443,7 @@ void setup() {
   base_az = data.accel.z;
   
   delay(1000);
-  M5.Lcd.fillRect(0, 40, 135, 30, TFT_BLACK); 
+  M5.Lcd.fillRect(0, 40, 135, 30, TFT_BLACK);
 }
 
 void loop() {
@@ -458,7 +452,6 @@ void loop() {
   if (M5.BtnA.wasPressed()) {
     if (alarmActive) {
       alarmActive = false;
-      M5.Speaker.stop(); 
       M5.Lcd.fillScreen(TFT_BLACK);
       M5.Lcd.setCursor(10, 20);
       M5.Lcd.println("ALARM SYSTEM");
@@ -475,7 +468,6 @@ void loop() {
 
   if (M5.Imu.update()) {
     auto data = M5.Imu.getImuData();
-    
     float diff_x = abs(data.accel.x - base_ax);
     float diff_y = abs(data.accel.y - base_ay);
     float diff_z = abs(data.accel.z - base_az);
@@ -500,20 +492,9 @@ void loop() {
       M5.Lcd.setTextSize(1);
       M5.Lcd.println("Press BtnA to stop");
     }
-
-    if (millis() - previousToneMillis >= (TONE_DURATION + PAUSE_DURATION)) {
-      previousToneMillis = millis();
-      
-      if (toneState == 0) {
-        M5.Speaker.tone(4000, TONE_DURATION);
-        toneState = 1;
-      } else {
-        M5.Speaker.tone(7000, TONE_DURATION);
-        toneState = 0;
-      }
-    }
+    // Блок со звуком полностью удалён
   } else {
-    delay(10); 
+    delay(10);
   }
 }
 ```
