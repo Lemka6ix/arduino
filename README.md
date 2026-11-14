@@ -418,14 +418,27 @@ void loop() {
 ## 11
 ```C
 #include <M5Unified.h>
+#include <math.h>
 
 bool alarmActive = false;
-float base_ax = 0.0, base_ay = 0.0, base_az = 0.0;
-float threshold = 0.4;
 
-void setup() {
-  M5.begin();
-  M5.Lcd.setRotation(0);
+float base_ax = 0, base_ay = 0, base_az = 0;
+float base_norm = 1.0;
+
+const float ANGLE_THRESHOLD = 10.0; 
+const float GYRO_THRESHOLD  = 25.0;  
+
+void calibrate() {
+  M5.Imu.update();
+  auto d = M5.Imu.getImuData();
+  base_ax = d.accel.x;
+  base_ay = d.accel.y;
+  base_az = d.accel.z;
+  base_norm = sqrt(base_ax * base_ax + base_ay * base_ay + base_az * base_az);
+  if (base_norm < 0.1) base_norm = 0.1; 
+}
+
+void drawIdleScreen() {
   M5.Lcd.fillScreen(TFT_BLACK);
   M5.Lcd.setTextColor(TFT_WHITE);
   M5.Lcd.setTextSize(2);
@@ -435,13 +448,15 @@ void setup() {
   M5.Lcd.setCursor(10, 60);
   M5.Lcd.println("Status: DISARMED");
   M5.Lcd.println("BtnA to reset");
+}
 
-  M5.Imu.update();
-  auto data = M5.Imu.getImuData();
-  base_ax = data.accel.x;
-  base_ay = data.accel.y;
-  base_az = data.accel.z;
-  
+void setup() {
+  M5.begin();
+  M5.Lcd.setRotation(0);
+
+  drawIdleScreen();
+
+  calibrate();
   delay(1000);
   M5.Lcd.fillRect(0, 40, 135, 30, TFT_BLACK);
 }
@@ -452,27 +467,30 @@ void loop() {
   if (M5.BtnA.wasPressed()) {
     if (alarmActive) {
       alarmActive = false;
-      M5.Lcd.fillScreen(TFT_BLACK);
-      M5.Lcd.setCursor(10, 20);
-      M5.Lcd.println("ALARM SYSTEM");
-      M5.Lcd.setCursor(10, 60);
-      M5.Lcd.println("Status: DISARMED");
-      
-      M5.Imu.update();
-      auto data = M5.Imu.getImuData();
-      base_ax = data.accel.x;
-      base_ay = data.accel.y;
-      base_az = data.accel.z;
+      drawIdleScreen();
+      calibrate();
     }
   }
 
   if (M5.Imu.update()) {
-    auto data = M5.Imu.getImuData();
-    float diff_x = abs(data.accel.x - base_ax);
-    float diff_y = abs(data.accel.y - base_ay);
-    float diff_z = abs(data.accel.z - base_az);
+    auto d = M5.Imu.getImuData();
 
-    if (diff_x > threshold || diff_y > threshold || diff_z > threshold) {
+    float ax = d.accel.x;
+    float ay = d.accel.y;
+    float az = d.accel.z;
+    float norm = sqrt(ax * ax + ay * ay + az * az);
+    if (norm < 0.1) norm = 0.1;
+
+    float dot = ax * base_ax + ay * base_ay + az * base_az;
+    float cosAng = dot / (norm * base_norm);
+    if (cosAng >  1.0) cosAng =  1.0;
+    if (cosAng < -1.0) cosAng = -1.0;
+    float angleDeg = acos(cosAng) * 180.0 / M_PI;
+    float gmag = sqrt(d.gyro.x * d.gyro.x +
+                      d.gyro.y * d.gyro.y +
+                      d.gyro.z * d.gyro.z);
+
+    if (angleDeg > ANGLE_THRESHOLD || gmag > GYRO_THRESHOLD) {
       alarmActive = true;
     }
   }
@@ -492,7 +510,6 @@ void loop() {
       M5.Lcd.setTextSize(1);
       M5.Lcd.println("Press BtnA to stop");
     }
-    // Блок со звуком полностью удалён
   } else {
     delay(10);
   }
