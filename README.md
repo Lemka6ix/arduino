@@ -425,8 +425,14 @@ bool alarmActive = false;
 float base_ax = 0, base_ay = 0, base_az = 0;
 float base_norm = 1.0;
 
-const float ANGLE_THRESHOLD = 10.0; 
-const float GYRO_THRESHOLD  = 25.0;  
+const float ANGLE_THRESHOLD = 10.0;  // градусы
+const float GYRO_THRESHOLD  = 25.0;  // град/с
+
+// Переменные для звука
+unsigned long previousToneMillis = 0;
+int toneState = 0;
+const int TONE_DURATION = 150; // мс
+const int PAUSE_DURATION = 50; // мс
 
 void calibrate() {
   M5.Imu.update();
@@ -435,7 +441,7 @@ void calibrate() {
   base_ay = d.accel.y;
   base_az = d.accel.z;
   base_norm = sqrt(base_ax * base_ax + base_ay * base_ay + base_az * base_az);
-  if (base_norm < 0.1) base_norm = 0.1; 
+  if (base_norm < 0.1) base_norm = 0.1;
 }
 
 void drawIdleScreen() {
@@ -453,9 +459,7 @@ void drawIdleScreen() {
 void setup() {
   M5.begin();
   M5.Lcd.setRotation(0);
-
   drawIdleScreen();
-
   calibrate();
   delay(1000);
   M5.Lcd.fillRect(0, 40, 135, 30, TFT_BLACK);
@@ -467,6 +471,8 @@ void loop() {
   if (M5.BtnA.wasPressed()) {
     if (alarmActive) {
       alarmActive = false;
+      M5.Speaker.stop();          // останавливаем звук
+      toneState = 0;              // сбрасываем фазу тона
       drawIdleScreen();
       calibrate();
     }
@@ -486,6 +492,7 @@ void loop() {
     if (cosAng >  1.0) cosAng =  1.0;
     if (cosAng < -1.0) cosAng = -1.0;
     float angleDeg = acos(cosAng) * 180.0 / M_PI;
+
     float gmag = sqrt(d.gyro.x * d.gyro.x +
                       d.gyro.y * d.gyro.y +
                       d.gyro.z * d.gyro.z);
@@ -496,6 +503,7 @@ void loop() {
   }
 
   if (alarmActive) {
+    // Мигание экрана
     static unsigned long lastBlink = 0;
     if (millis() - lastBlink > 200) {
       lastBlink = millis();
@@ -509,6 +517,18 @@ void loop() {
       M5.Lcd.setCursor(10, 100);
       M5.Lcd.setTextSize(1);
       M5.Lcd.println("Press BtnA to stop");
+    }
+
+    // Двухтональный звук
+    if (millis() - previousToneMillis >= (TONE_DURATION + PAUSE_DURATION)) {
+      previousToneMillis = millis();
+      if (toneState == 0) {
+        M5.Speaker.tone(4000, TONE_DURATION);
+        toneState = 1;
+      } else {
+        M5.Speaker.tone(7000, TONE_DURATION);
+        toneState = 0;
+      }
     }
   } else {
     delay(10);
