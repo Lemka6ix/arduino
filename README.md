@@ -413,3 +413,268 @@ void loop() {
 }
 
 ```
+
+
+## 11
+```C
+#include <M5Unified.h>
+
+bool alarmActive = false;
+float base_ax = 0.0, base_ay = 0.0, base_az = 0.0;
+float threshold = 0.4; 
+
+unsigned long previousToneMillis = 0;
+int toneState = 0;
+const int TONE_DURATION = 150; 
+const int PAUSE_DURATION = 50; 
+
+void setup() {
+  M5.begin();
+  
+  M5.Lcd.setRotation(0); 
+  M5.Lcd.fillScreen(TFT_BLACK);
+  M5.Lcd.setTextColor(TFT_WHITE);
+  M5.Lcd.setTextSize(2);
+  M5.Lcd.setCursor(10, 20);
+  M5.Lcd.println("ALARM SYSTEM");
+  M5.Lcd.setTextSize(1);
+  M5.Lcd.setCursor(10, 60);
+  M5.Lcd.println("Status: DISARMED");
+  M5.Lcd.println("BtnA to reset");
+
+  M5.Imu.update();
+  auto data = M5.Imu.getImuData();
+  base_ax = data.accel.x;
+  base_ay = data.accel.y;
+  base_az = data.accel.z;
+  
+  delay(1000);
+  M5.Lcd.fillRect(0, 40, 135, 30, TFT_BLACK); 
+}
+
+void loop() {
+  M5.update();
+
+  if (M5.BtnA.wasPressed()) {
+    if (alarmActive) {
+      alarmActive = false;
+      M5.Speaker.stop(); 
+      M5.Lcd.fillScreen(TFT_BLACK);
+      M5.Lcd.setCursor(10, 20);
+      M5.Lcd.println("ALARM SYSTEM");
+      M5.Lcd.setCursor(10, 60);
+      M5.Lcd.println("Status: DISARMED");
+      
+      M5.Imu.update();
+      auto data = M5.Imu.getImuData();
+      base_ax = data.accel.x;
+      base_ay = data.accel.y;
+      base_az = data.accel.z;
+    }
+  }
+
+  if (M5.Imu.update()) {
+    auto data = M5.Imu.getImuData();
+    
+    float diff_x = abs(data.accel.x - base_ax);
+    float diff_y = abs(data.accel.y - base_ay);
+    float diff_z = abs(data.accel.z - base_az);
+
+    if (diff_x > threshold || diff_y > threshold || diff_z > threshold) {
+      alarmActive = true;
+    }
+  }
+
+  if (alarmActive) {
+    static unsigned long lastBlink = 0;
+    if (millis() - lastBlink > 200) {
+      lastBlink = millis();
+      static bool isRed = false;
+      isRed = !isRed;
+      M5.Lcd.fillScreen(isRed ? TFT_RED : TFT_BLACK);
+      M5.Lcd.setTextColor(isRed ? TFT_WHITE : TFT_RED);
+      M5.Lcd.setCursor(20, 20);
+      M5.Lcd.setTextSize(2);
+      M5.Lcd.println("ALARM!");
+      M5.Lcd.setCursor(10, 100);
+      M5.Lcd.setTextSize(1);
+      M5.Lcd.println("Press BtnA to stop");
+    }
+
+    if (millis() - previousToneMillis >= (TONE_DURATION + PAUSE_DURATION)) {
+      previousToneMillis = millis();
+      
+      if (toneState == 0) {
+        M5.Speaker.tone(4000, TONE_DURATION);
+        toneState = 1;
+      } else {
+        M5.Speaker.tone(7000, TONE_DURATION);
+        toneState = 0;
+      }
+    }
+  } else {
+    delay(10); 
+  }
+}
+```
+
+
+## 12
+```C
+#include <M5Unified.h>
+#include <math.h>
+
+const int BUFFER_SIZE = 512;
+int16_t buffer[BUFFER_SIZE];
+const float CLAP_THRESHOLD = 2000.0;
+
+uint16_t colors[] = {TFT_RED, TFT_BLUE, TFT_GREEN, TFT_YELLOW, TFT_MAGENTA, TFT_CYAN};
+int colorIndex = 0;
+
+void setup() {
+  M5.begin();
+  M5.Display.setRotation(0);
+  M5.Display.fillScreen(TFT_BLACK);
+  
+  M5.Mic.begin();
+  M5.Mic.setSampleRate(8000);
+}
+
+void loop() {
+  M5.update();
+  
+  bool ok = M5.Mic.record(buffer, BUFFER_SIZE);
+  if (ok) {
+    while (M5.Mic.isRecording()) {
+      delay(1);
+    }
+    
+    double sum = 0;
+    for (int i = 0; i < BUFFER_SIZE; i++) {
+      sum += (double)buffer[i] * (double)buffer[i];
+    }
+    double rms = sqrt(sum / BUFFER_SIZE);
+    
+    if (rms > CLAP_THRESHOLD) {
+      colorIndex++;
+      if (colorIndex >= 6) {
+        colorIndex = 0;
+      }
+      M5.Display.fillScreen(colors[colorIndex]);
+      delay(300); 
+    }
+  }
+}
+```
+
+
+## 13
+```C
+#include <M5Unified.h>
+#include "USB.h"
+#include "USBHIDKeyboard.h"
+#include "USBHIDMouse.h"
+
+USBHIDKeyboard Keyboard;
+USBHIDMouse Mouse;
+
+const char* MY_NAME = "Klim"; 
+
+bool executed = false;
+
+void pressCombo(uint8_t mod, uint8_t key, uint16_t hold = 60) {
+  if (mod) Keyboard.press(mod);
+  Keyboard.press(key);
+  delay(hold);
+  Keyboard.releaseAll();
+  delay(150);
+}
+
+void typeSlow(const char* s) {
+  while (*s) {
+    if (*s == '\n') {
+      Keyboard.press(KEY_RETURN);
+      delay(30);
+      Keyboard.releaseAll();
+    } else {
+      Keyboard.print(*s);
+    }
+    delay(25);
+    s++;
+  }
+}
+
+// Открыть Блокнот через Win+R
+void openNotepad() {
+  pressCombo(KEY_LEFT_GUI, 'r');     
+  delay(500);
+  typeSlow("notepad");              
+  delay(150);
+  Keyboard.press(KEY_RETURN);
+  delay(30);
+  Keyboard.releaseAll();
+  delay(2200);                      
+}
+
+// Сохранить как файл
+void saveAs(const char* filename) {
+  pressCombo(KEY_LEFT_CTRL, 's');    // Ctrl+S
+  delay(700);
+  typeSlow(filename);
+  delay(300);
+  Keyboard.press(KEY_RETURN);
+  delay(30);
+  Keyboard.releaseAll();
+  delay(1200);
+}
+
+void runPoem() {
+  M5.Display.fillScreen(TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+  M5.Display.setTextSize(1);
+
+  M5.Display.drawString("1. Open Notepad...", 10, 10);
+  openNotepad();
+
+  M5.Display.drawString("2. Type poem...", 10, 30);
+  typeSlow(
+    "Roses are red,\n"
+    "Violets are blue,\n"
+    "Sugar is sweet,\n"
+    "And so are you.\n"
+  );
+  delay(500);
+
+  M5.Display.drawString("3. Save file...", 10, 50);
+  String fname = String(MY_NAME) + ".txt";
+  saveAs(fname.c_str());
+
+  M5.Display.setTextColor(TFT_GREEN, TFT_BLACK);
+  M5.Display.drawString("Done!", 10, 70);
+}
+
+void setup() {
+  M5.begin();
+  M5.Display.setRotation(0); 
+  M5.Display.fillScreen(TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE, TFT_BLACK);
+  M5.Display.setTextSize(1);
+  M5.Display.drawString("HID Keyboard ready", 10, 10);
+  M5.Display.drawString("Press A to run", 10, 30);
+  M5.Display.drawString("OS layout: ENGLISH", 10, 50);
+
+  Keyboard.begin();
+  Mouse.begin();
+  USB.begin();
+  delay(1500);                        
+}
+
+void loop() {
+  M5.update();
+  if (M5.BtnA.wasPressed() && !executed) {
+    executed = true;
+    runPoem();
+  }
+  delay(10);
+}
+```
