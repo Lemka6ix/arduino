@@ -2,42 +2,8 @@
 ## 10
 
 ```C
-#include <M5Unified.h>
-#include <math.h>
-
-bool alarmActive = false;
-
-float base_ax = 0, base_ay = 0, base_az = 0;
-float base_norm = 1.0;
-
-const float ANGLE_THRESHOLD = 7.0;  
-const float GYRO_THRESHOLD  = 1.2;  
-
-// Переменные для звука
-unsigned long previousToneMillis = 0;
-int toneState = 0;
-const int TONE_DURATION = 150; 
-const int PAUSE_DURATION = 50; 
-
-void calibrate() {
-  M5.Imu.update();
-  auto d = M5.Imu.getImuData();
-  base_ax = d.accel.x;
-  base_ay = d.accel.y;
-  base_az = d.accel.z;
-  base_norm = sqrt(base_ax * base_ax + base_ay * base_ay + base_az * base_az);
-  if (base_norm < 0.1) base_norm = 0.1;
-}
-
-void drawIdleScreen() {
-  M5.Lcd.fillScreen(TFT_BLACK);
-  M5.Lcd.setTextColor(TFT_WHITE);
-  M5.Lcd.setTextSize(2);
-  M5.Lcd.setCursor(10, 20);
-  M5.Lcd.println("ALARM SYSTEM");
-  M5.Lcd.setTextSize(1);
-  M5.Lcd.setCursor(10, 60);
-  M5.Lcd.println("Status: DISARMED");
+setTextColor(TFT_WHITE);
+  M5.Lcd.: DISARMED");
   M5.Lcd.println("BtnA to reset");
 }
 
@@ -665,3 +631,101 @@ void loop() {
   delay(10);
 }
 ```
+
+
+
+
+#include <M5Unified.h>
+#include <WiFi.h>
+#include <PubSubClient.h>
+
+const char* ssid = "ВАШ_WIFI";          // Впишите ваш Wi-Fi
+const char* password = "ВАШ_ПАРОЛЬ";    // Впишите ваш пароль
+
+const char* mqtt_server = "broker.hivemq.com";
+
+WiFiClient espClient;
+PubSubClient client(espClient);
+
+// Эта функция срабатывает КАЖДЫЙ РАЗ, когда плате приходит ЛЮБОЕ сообщение
+void callback(char* topic, byte* payload, unsigned int length) {
+  String message = "";
+  for (int i = 0; i < length; i++) {
+    message += (char)payload[i];
+  }
+
+  // СРАЗУ РИСУЕМ НА ЭКРАНЕ ВСЁ, ЧТО ПРИШЛО
+  M5.Display.fillScreen(TFT_BLACK);
+  M5.Display.setTextSize(1);
+  M5.Display.setCursor(5, 10);
+  
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.print("Topic: ");
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.println(topic);
+
+  M5.Display.setTextColor(TFT_CYAN);
+  M5.Display.print("Msg: ");
+  M5.Display.setTextColor(TFT_YELLOW);
+  M5.Display.setTextSize(2);
+  M5.Display.println(message);
+  M5.Display.setTextSize(1);
+
+  // Обработка звука (если пришел топик bool)
+  if (String(topic).indexOf("bool") != -1) {
+    if (message == "1" || message == "true" || message == "TRUE") {
+      M5.Speaker.tone(4000, 500);
+    }
+  }
+}
+
+void setup() {
+  M5.begin();
+  Serial.begin(115200); // Для отладки по USB
+  M5.Display.setRotation(0);
+  M5.Display.fillScreen(TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setCursor(10, 10);
+  M5.Display.println("Starting...");
+
+  WiFi.begin(ssid, password);
+  while (WiFi.status() != WL_CONNECTED) {
+    delay(500);
+    M5.Display.print(".");
+  }
+
+  client.setServer(mqtt_server, 1883);
+  client.setCallback(callback);
+}
+
+void loop() {
+  M5.update();
+
+  if (!client.connected()) {
+    String clientId = "M5Stick-" + String(random(0xffff), HEX);
+    if (client.connect(clientId.c_str())) {
+      M5.Display.fillScreen(TFT_BLACK);
+      M5.Display.setCursor(10, 10);
+      M5.Display.println("MQTT Connected!");
+      
+      // ВАЖНО: Подписываемся на ВСЕ вложенные топики M5_Klim
+      // Символ # означает "любой топик, который начинается с M5_Klim/"
+      client.subscribe("M5_Klim/#"); 
+      
+    } else {
+      delay(1000);
+    }
+  }
+  
+  client.loop();
+
+  // Отправка состояния кнопок
+  if (M5.BtnA.wasPressed()) {
+    client.publish("M5_Klim/buttons", "BtnA_Pressed");
+  }
+  if (M5.BtnB.wasPressed()) {
+    client.publish("M5_Klim/buttons", "BtnB_Pressed");
+  }
+  
+  delay(10);
+}
