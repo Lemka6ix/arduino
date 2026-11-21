@@ -541,3 +541,127 @@ void loop() {
   delay(10);
 }
 ```
+
+```C
+#include <M5Unified.h>
+#include <BLEDevice.h>
+#include <BLEServer.h>
+#include <BLEUtils.h>
+#include <BLE2902.h>
+
+#define SERVICE_UUID           "4fafc201-1fb5-459e-8fcc-c5c9c331914b"
+#define CHARACTERISTIC_UUID_TX "beb5483e-36e1-4688-b7f5-ea07361b26a8"
+#define CHARACTERISTIC_UUID_RX "1c95d5e3-1c31-4d3d-985c-6a52b388d1f6"
+
+BLEServer* pServer = nullptr;
+BLECharacteristic* pTxCharacteristic = nullptr;
+BLECharacteristic* pRxCharacteristic = nullptr;
+
+bool deviceConnected = false;
+bool newDataReceived = false;
+String receivedText = "";          // ← изменено на String
+
+class MyServerCallbacks : public BLEServerCallbacks {
+  void onConnect(BLEServer* pServer) { deviceConnected = true; }
+  void onDisconnect(BLEServer* pServer) {
+    deviceConnected = false;
+    BLEDevice::startAdvertising();
+  }
+};
+
+class MyCallbacks : public BLECharacteristicCallbacks {
+  void onWrite(BLECharacteristic* pCharacteristic) {
+    String value = pCharacteristic->getValue();   // ← изменено на String
+    if (value.length() > 0) {
+      receivedText = value;
+      newDataReceived = true;
+    }
+  }
+};
+
+void setup() {
+  M5.begin();
+  M5.Display.setRotation(0);
+  M5.Display.fillScreen(TFT_BLACK);
+  M5.Display.setTextColor(TFT_WHITE);
+  M5.Display.setTextSize(1);
+  M5.Display.setCursor(10, 10);
+  M5.Display.println("BLE IMU & Text");
+  M5.Display.setCursor(10, 40);
+  M5.Display.println("Status: Waiting...");
+
+  BLEDevice::init("M5StickS3_IMU");
+  pServer = BLEDevice::createServer();
+  pServer->setCallbacks(new MyServerCallbacks());
+
+  BLEService* pService = pServer->createService(SERVICE_UUID);
+
+  pTxCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID_TX,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_NOTIFY
+  );
+  pTxCharacteristic->addDescriptor(new BLE2902());
+
+  pRxCharacteristic = pService->createCharacteristic(
+      CHARACTERISTIC_UUID_RX,
+      BLECharacteristic::PROPERTY_READ | BLECharacteristic::PROPERTY_WRITE
+  );
+  pRxCharacteristic->setCallbacks(new MyCallbacks());
+  pRxCharacteristic->setValue("Hello");
+
+  pService->start();
+
+  BLEAdvertising* pAdvertising = BLEDevice::getAdvertising();
+  pAdvertising->addServiceUUID(SERVICE_UUID);
+  pAdvertising->setScanResponse(true);
+  pAdvertising->setMinPreferred(0x06);
+  pAdvertising->setMinPreferred(0x12);
+  BLEDevice::startAdvertising();
+}
+
+void loop() {
+  M5.update();
+
+  if (deviceConnected) {
+    static unsigned long lastTime = 0;
+    if (millis() - lastTime >= 1000) {
+      lastTime = millis();
+      if (M5.Imu.update()) {
+        auto data = M5.Imu.getImuData();
+        char buf[64];
+        snprintf(buf, sizeof(buf), "X:%.2f Y:%.2f Z:%.2f",
+                 data.accel.x, data.accel.y, data.accel.z);
+        pTxCharacteristic->setValue(buf);
+        pTxCharacteristic->notify();
+      }
+    }
+  }
+
+  if (newDataReceived) {
+    newDataReceived = false;
+    M5.Display.fillRect(0, 40, 135, 100, TFT_BLACK);
+    M5.Display.setCursor(10, 40);
+    M5.Display.setTextColor(TFT_GREEN);
+    M5.Display.println("Text from BLE:");
+    M5.Display.setCursor(10, 60);
+    M5.Display.setTextColor(TFT_WHITE);
+    M5.Display.println(receivedText);      // ← String выводится напрямую
+  }
+
+  static bool lastConnectionState = false;
+  if (deviceConnected != lastConnectionState) {
+    lastConnectionState = deviceConnected;
+    M5.Display.fillRect(0, 20, 135, 20, TFT_BLACK);
+    M5.Display.setCursor(10, 20);
+    if (deviceConnected) {
+      M5.Display.setTextColor(TFT_GREEN);
+      M5.Display.println("Status: Connected");
+    } else {
+      M5.Display.setTextColor(TFT_RED);
+      M5.Display.println("Status: Waiting...");
+    }
+  }
+
+  delay(10);
+}
+```
